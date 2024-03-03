@@ -10,87 +10,99 @@
 
 // If in Windows environment define WINDOWS else define LINUX
 #if defined(__WINDOWS__) || defined(_WIN64) || defined(__WIN32__) || defined(_WIN32) || defined(WIN32) || defined(__CYGWIN__) || defined(__TOS_WIN__)
-	#define WINDOWS
+#define WINDOWS
 #elif defined(__unix__) || defined(__unix) || defined(unix)
-	#define LINUX
+#define LINUX
 #endif
 
 // Include windows.h if in Windows.
 #ifdef WINDOWS
-	#include <windows.h>
-	#define READ_TIMEOUT 10
-	#define ARDUINO_WAIT_TIME 60
+#include <windows.h>
+#define READ_TIMEOUT 10
+#define ARDUINO_WAIT_TIME 60
 #else
-	#include <termios.h>
-	#include <linux/serial.h>
-	#include <sys/ioctl.h>
-	#include <unistd.h>
-	#include <fcntl.h>
+#include <termios.h>
+#include <linux/serial.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <fcntl.h>
 #endif
 
-class Serial {
-	private:
-		char *rxString;
-		std::string portName;
-		long baudRate;
-		long dataSize;
-		char parity;
-		float stopBits;
-		bool stdBaud;
+class Serial
+{
+private:
+	char *rxString;
+	char rxdata[1024];
+	std::string portName;
+	long baudRate;
+	long dataSize;
+	char parity;
+	float stopBits;
+	bool stdBaud;
 
-	#ifdef WINDOWS
-		HANDLE handler;
-		OVERLAPPED osRead;
-		OVERLAPPED osWrite;
-		// BOOL fWaitOnRead;
-		COMMTIMEOUTS origTimeouts;
-	#else
-		int serialFd;
-		struct termios tty;
-		bool configureTermios();
-	#endif
-	
-	public:
-		Serial();
-		Serial(std::string device, long bRate, long dSize, char pType, float sBits);
-		~Serial();
-		int Open(); // Return 0 on success, otherwise return -1.
-		void Close();
-		std::string Read(unsigned int numChars, bool& rSuccess);
-		std::vector<char> Read(unsigned int numChars, bool& rSuccess, int x);
-		bool Write(char *buffer, int length);
-		
-		// Set/Get config settings.
-		bool setRTS(bool value);
-		bool setDTR(bool valus);
-		bool getCTS(bool &success);
-		bool getDSR(bool &success);
-		bool getRI(bool &success);
-		bool getCD(bool &success);
+#ifdef WINDOWS
+	HANDLE handler;
+	OVERLAPPED osRead;
+	OVERLAPPED osWrite;
+	BOOL fWaitOnRead;
+	COMMTIMEOUTS origTimeouts;
+	COMSTAT status;
+	DWORD errors;
+#else
+	int serialFd;
+	struct termios tty;
+	bool configureTermios();
+#endif
 
-		void setPortName(std::string device);
-		void setBaudRate(long bRate);
-		void setDataSize(long dSize);
-		void setParity(char pType);
-		void setStopBits(float sBits);
+public:
+	Serial();
+	Serial(std::string device, long bRate, long dSize, char pType, float sBits);
+	~Serial();
+	int Open(); // Return 0 on success, otherwise return -1.
+	void Close();
+#ifdef WINDOWS
+	char *Read(bool &rSuccess);
+	int readSerialPort(char *buffer, unsigned int buf_size);
+// std::vector<char> ReadString(bool &success);
+#else
+	std::vector<char> Read(unsigned int numChars, bool &rsuccess, int x);
+	std::string Read(unsigned int numChars, bool &rSuccess);
+#endif
 
-		std::string getPortName();
-		long getBaudRate();
-		long getDataSize();
-		char getParity();
-		float getStopBIts();
+	bool Write(char *buffer, int length);
 
-		// Helpers.
-		bool isOpened();
-		void Delay(unsigned long ms)
-			{
-				#ifdef WINDOWS
-				Sleep(ms);
-				#else
-				sleep(ms);
-				#endif
-			}
+	// Set/Get config settings.
+	bool setRTS(bool value);
+	bool setDTR(bool value);
+	bool getCTS(bool &success);
+	bool getDSR(bool &success);
+	bool getRI(bool &success);
+	bool getCD(bool &success);
+
+	void setPortName(std::string device);
+	void setBaudRate(long bRate);
+	void setDataSize(long dSize);
+	void setParity(char pType);
+	void setStopBits(float sBits);
+
+	std::string getPortName();
+	long getBaudRate();
+	long getDataSize();
+	char getParity();
+	float getStopBIts();
+
+	// Helpers.
+	bool isOpened();
+	void Delay(unsigned long ms)
+	{
+#ifdef WINDOWS
+		Sleep(ms);
+#else
+		sleep(ms);
+#endif
+	}
 };
 
 std::vector<std::string> getAvailablePorts();
+bool SelectComPort();
 #endif // SERIAL_H
