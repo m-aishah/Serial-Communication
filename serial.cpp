@@ -11,6 +11,15 @@ Serial::Serial() : Serial(
 {
 }
 
+/**
+ * Creates an instance of the Serial Class for serial communication.
+ * Sets the configs accordingly.
+ * @device: The portname.
+ * @bRate: The baud rate.
+ * @dSize: The data size.
+ * @pType: THe parity type.
+ * @sBits: The number of stop bits.
+ */
 Serial::Serial(std::string device, long bRate, long dSize, char pType, float sBits)
 {
 	// Initially, handler and port file descriptor is invalid until port is opened.
@@ -26,27 +35,42 @@ Serial::Serial(std::string device, long bRate, long dSize, char pType, float sBi
 	setStopBits(sBits);
 }
 
+/**
+ * Closes the serial communication port.
+ */
 Serial::~Serial()
 {
 	Close();
 }
 
+/**
+ * setPortName - Sets the portName variable.
+ * @device: The string to be set as the port name.
+ * Returns: void.
+ */
 void Serial::setPortName(std::string device)
 {
 	portName = device;
 }
 
+/**
+ * setDataSize - Sets the dataSize variable.
+ * @dSize: The value to be set as the data size.
+ * Returns: void.
+ */
 void Serial::setDataSize(long dSize)
 {
 	// Data size cannot be less than 5 or greater than 8.
 	dataSize = ((dSize < 5) || (dSize > 8)) ? 8 : dSize;
 }
 
-// N - Parity None
-// O - Parity Odd
-// E - Parity Even
-// M - Parity Mark
-// s - Parity Space
+/**
+ * setParity - Sets the parity variable. Could be:
+ * N - Parity None, O - Parity Odd, E - Parity Even,
+ * M - Parity Mark, or S - Parity Space.
+ * @pType; The character to be set as the parity type.
+ * Returns: void.
+ */
 void Serial::setParity(char pType)
 {
 	if ((pType == 'N') || (pType == 'E') || (pType == 'O'))
@@ -61,22 +85,38 @@ void Serial::setParity(char pType)
 	}
 }
 
-// 2 or 1 (default)
+/**
+ * setStopBits: Sets the stopBIts variable. Could be 2 or 1 (default). Maybe 1.5? for Windows
+ * @sBits: The float to set as the stop bits.
+ * Returns: void.
+ */
 void Serial::setStopBits(float sBits)
 {
 	stopBits = (sBits == 2) ? 2 : 1;
 }
 
+/**
+ * getPortName: Returns the portName used in communication.
+ * Returns: portName.
+ */
 std::string Serial::getPortName()
 {
 	return portName;
 }
 
+/**
+ * getDataSize - Returns the dataSize in communication.
+ * Returns: dataSize.
+ */
 long Serial::getDataSize()
 {
 	return dataSize;
 }
 
+/**
+ * getParity - Returns the parity used in communication.
+ * Returns: parity.
+ */
 char Serial::getParity()
 {
 	return parity;
@@ -87,13 +127,23 @@ float Serial::getStopBIts()
 	return stopBits;
 }
 
+/**
+ * getBaudRate: Returns the baud rate used in communication.
+ * Returns: baudRate.
+ */
 long Serial::getBaudRate()
 {
 	return baudRate;
 }
 
+// Definition of some functions that are specific to Windows OS.
 #ifdef WINDOWS
 
+/**
+ * setBaudRate - Sets baudRate variable. 
+ * Also sets stdBaud to true if bRate is one of the standard ones. Otherwise false.
+ * Returns: void.
+ */
 void Serial::setBaudRate(long bRate)
 {
 	stdBaud = true;
@@ -148,11 +198,19 @@ void Serial::setBaudRate(long bRate)
 	}
 }
 
+/**
+ * isOpened - Checks if communication port is open.
+ * Returns: true, if the port is open. Otherwise false.
+ */
 bool Serial::isOpened()
 {
 	return (handler != INVALID_HANDLE_VALUE);
 }
 
+/**
+ * Open - Opens comm. port; Sets comm. parameters; Creates read/write overlapped events; and Sets timeouts.
+ * Returns: 0 on success, otherwise -1.
+ */
 int Serial::Open()
 {
 	if (isOpened())
@@ -258,6 +316,10 @@ int Serial::Open()
 	return (0);
 }
 
+/**
+ * Close - Closes communication port; Reverts timeout settings; and Closes Read/Write events.
+ * Returns: void.
+ */
 void Serial::Close()
 {
 	if (isOpened())
@@ -273,6 +335,11 @@ void Serial::Close()
 	}
 }
 
+/**
+ * Read - Reads from a serial comm port into a buffer.
+ * @success: Flag to be set as true when read operation is successful.
+ * Returns: Returns a buffer containing the data read.
+ */
 char *Serial::Read(bool &success)
 {
 	success = false;
@@ -284,7 +351,7 @@ char *Serial::Read(bool &success)
 	DWORD dwRead;
 	DWORD length = 11;
 	BYTE *data = (BYTE *)(&rxdata);
-	// the creation of the overlapped read operation
+	// Overlapped read operation
 	if (!fWaitOnRead)
 	{
 		// Issue read operation.
@@ -307,7 +374,7 @@ char *Serial::Read(bool &success)
 		} // success
 	}
 
-	// detection of the completion of an overlapped read operation
+	// Detect completion of an overlapped read operation
 	DWORD dwRes;
 	if (fWaitOnRead)
 	{
@@ -340,6 +407,7 @@ char *Serial::Read(bool &success)
 	// std::cout << "Done" << rxdata << std::endl;
 	return rxdata;
 }
+
 
 int Serial::readSerialPort(char *buffer, unsigned int buf_size)
 {
@@ -670,7 +738,7 @@ int Serial::Open()
 	serialFd = open(portName.c_str(), O_RDWR);
 	if (serialFd == -1)
 	{
-		std::cerr << "Error open serial port: "
+		std::cerr << "Error opening serial port: "
 				  << strerror(errno) << std::endl;
 		return (-1);
 	}
