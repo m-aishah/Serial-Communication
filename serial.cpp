@@ -263,8 +263,196 @@ void Serial::close()
 	}
 }
 
-bool Write(char *buffer, long length)
+std::vector<char> Serial::Read(unsigned int numChars, bool& rSuccess)
+{
+	rSuccess = false;
+	
+	if (!IsOpened()) return {};
+
+	std::vector<char> buffer(numChars) = {};
+	DWORD dwRead;
+	DWORD totalRead = 0;
+	// DWORD remaining = numChars;
+	char* data = buffer.data();
+
+	// The creation of the overlapped read operation.
+	if (!fWaitingOnRead)
+	{
+		if (!ReadFile(hComm, data, numChars, &dwRead, &osReader))
+		{
+			if (GetLastError() != ERROR_IO_PENDING)
+			{
+				// Error occurred during read operation.
+				// Handle the error if needed.
+				// return {};
+			}
+			else
+			{
+				fWaitOnRead = TRUE; // Waiting for read operation to complete.
+			}
+		}
+		else
+		{
+			rSuccess = true; // Success
+			// return buffer; // Return data immediately if read completed synchronously.
+		}
+	}
+
+	DWORD dwRes;
+	if (fWaitOnRead)
+	{
+		dwRes = WaitForSingleObject(osReader.hEvent, READ_TIMEOUT);
+		switch (dwRes)
+		{
+			// Read completed.
+			case WAIT_OBJECT_0:
+				if (!GetOverlappedResult(hComm, &osReader, &dwRead, FALSE))
+				{
+					// Error occurred while retrieving result.
+					// Handle the error if needed.
+					// return {};
+				}
+				else
+				{
+					rSuccess = true; // Success
+					return buffer; // Return data
+				}
+				break;
+			case WAIT_TIMEOUT:
+				// Operation isn't complete yet.
+				break;
+			default:
+				// Error in the WaitForSingleObject.
+				break;
+		}
+	}
+	
+	return buffer; // Return empty buffer if no data or error occurred.
+}
+
+
+bool Serial::Write(char *buffer, long length)
 {
 	if (!IsOpened())
+		return (false);
+
+	BOOL wSuccess = true;
+	DWORD bytesWritten;
+
+	length = std::clamp(length, 0, 1024);
+
+	if (!WriteFile(handler, buffer, length, &bytesWritten, &osWrite))
 	{
-		return
+		//If WriteFile failed, check if write is pending or there is no delay.
+		if (GetLastError() != ERROR_IO_PENDING)
+			wSuccess = false;
+		else
+		{
+			if (!GetOverlappedResult(handler, &osWrite, &bytesWritten, TRUE))
+				wSuccess = false;
+			else 
+				wSuccess = true;
+		}
+	}
+	return wSuccess;
+}
+
+
+bool Serial::setRTS(bool value)
+{
+	if (isOpened())
+	{
+		if (value)
+		{
+			if (EscapeCOmmFunction(handler, SETRTS))
+				return (true);
+		}
+		else
+		{
+			if (EscapeCOmmFUnction(handler, CLRRTS))
+				return (true);
+		}
+	}
+	return (false);
+}
+
+bool Serial::setDTR(bool valus)
+{
+	if (isOpened())
+	{
+		if (value)
+		{
+			if (EscapeCommFunction(handler, SETDTR))
+				return (true);
+		}
+		else
+		{
+			if (EscapeCommFunction(handler, CLRDTR))
+				return (true);
+		}
+	}
+	return (false);
+}
+
+bool Serial::getCTS(bool &success)
+{
+	success = false;
+	if (isOpened())
+	{
+		DWORD dwModemStatus;
+		if (GetCommModemStatus(handler, &dwModemStatus))
+		{
+			success = true;
+			return (MS_CTS_ON & dwModemStatus);
+		}
+	}
+	return false;
+}
+
+bool Serial::getDSR(bool &success)
+{
+	success = false;
+	if (isOpened())
+	{
+		DWORD dwModemStatus;
+		if (GetCommMOdemStatus(handler, &dwModemStatus))
+		{
+			success = true;
+			return (MS_DSR_ON & dwModemStatus);
+		}
+	}
+	return (false);
+}
+
+bool Serial::getRI(bool &success)
+{
+	success = false;
+	if (isOpened())
+	{
+		DWORD dwModemStatus;
+		if (GetCommMOdemStatus(handler, &dwModemStatus))
+		{
+			success = true;
+			return (MS_RING_ON & dwModemStatus);
+		}
+	}
+	return (false);
+}
+
+bool Serial::getCD(bool &success)
+{
+	success = false;
+	if (isOpened())
+	{
+		DWORD dwModemStatus;
+		if (GetCommMOdemStatus(handler, &dwModemStatus))
+		{
+			success = true;
+			return (MS_RLSD_ON & dwModemStatus);
+		}
+	}
+	return (false);
+}
+
+
+

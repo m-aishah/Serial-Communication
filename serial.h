@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <string>
 #include <cstring>
+#include <algorithm>
+#include <vector>
 
 // If in Windows environment define WINDOWS else define LINUX
 #if defined(__WINDOWS__) || defined(_WIN64) || defined(__WIN32__) || defined(_WIN32) || defined(WIN32) || defined(__CYGWIN__) || defined(__TOS_WIN__)
@@ -51,7 +53,7 @@ class Serial {
 		~Serial();
 		int open(); // Return 0 on success, otherwise return -1.
 		void close();
-		std::string Read(bool& success, long maxLength);
+		std::vector<char> Read(unsigned int numChars, bool& rSuccess);
 		bool Write(char *buffer, long length);
 		
 		// Set/Get config settings.
