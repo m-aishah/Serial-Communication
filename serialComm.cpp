@@ -18,7 +18,7 @@ int main()
 
 	char msg[255];
 
-	std::vector<std::string> vec = port.getAvailablePorts();
+	std::vector<std::string> vec = getAvailablePorts();
 	for (const auto& str : vec) {
         std::cout << str << std::endl;
     }

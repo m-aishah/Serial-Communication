@@ -82,8 +82,6 @@ class Serial {
 
 		// Helpers.
 		bool isOpened();
-		std::vector<std::string> getAvailablePorts();
-
 		void Delay(unsigned long ms)
 			{
 				#ifdef WINDOWS
@@ -94,4 +92,5 @@ class Serial {
 			}
 };
 
+std::vector<std::string> getAvailablePorts();
 #endif // SERIAL_H

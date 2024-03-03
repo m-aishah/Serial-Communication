@@ -627,7 +627,6 @@ bool Serial::Write(char *buffer, int length)
 	if (!isOpened())
 		return (false);
 
-	std::cout << "In write" << std::endl;
 	length = std::clamp(length, 0, 1024);
 
 	return (write(serialFd, buffer, length) == length);
@@ -704,30 +703,38 @@ bool Serial::getCD(bool& success)
 using std::cout;
 namespace fs = std::filesystem;
 
-std::vector<std::string> getAvailablePorts() {
-    std::vector<std::string> port_names;
+std::vector<std::string> getAvailablePorts()
+{
+	std::vector<std::string> port_names;
 
-    fs::path p("/dev/serial/by-id");
-    try {
-      if (!exists(p)) {
-        throw std::runtime_error(p.generic_string() + " does not exist");
-      } 
-      else {
-        for (auto de : fs::directory_iterator(p)) {
-          if (is_symlink(de.symlink_status())) {
-            fs::path symlink_points_at = read_symlink(de);
-            fs::path canonical_path = fs::canonical(p / symlink_points_at);
-            //cout << canonical_path.generic_string() << std::endl;
-            port_names.push_back(canonical_path.generic_string());
-          }
-        }
-      }
-    } catch (const fs::filesystem_error &ex) {
-      cout << ex.what() << '\n';
-      throw ex;
-    }
-    std::sort(port_names.begin(), port_names.end());
-    return port_names;
+	fs::path p("/dev/serial/by-id");
+	try 
+	{
+		if (!exists(p))
+		{
+			throw std::runtime_error(p.generic_string() + " does not exist");
+		}
+		else
+		{
+			for (auto de : fs::directory_iterator(p)) 
+			{
+				if (is_symlink(de.symlink_status()))
+				{
+					fs::path symlink_points_at = read_symlink(de);
+					fs::path canonical_path = fs::canonical(p / symlink_points_at);
+					//cout << canonical_path.generic_string() << std::endl;
+					port_names.push_back(canonical_path.generic_string());
+				}
+			}
+		}
+	}
+	catch (const fs::filesystem_error &ex)
+	{
+		cout << ex.what() << '\n';
+		throw ex;
+	}
+	std::sort(port_names.begin(), port_names.end());
+	return port_names;
 }
 
 #endif
