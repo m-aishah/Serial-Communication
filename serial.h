@@ -6,6 +6,7 @@
 #include <cstring>
 #include <algorithm>
 #include <vector>
+#include <iostream>
 
 // If in Windows environment define WINDOWS else define LINUX
 #if defined(__WINDOWS__) || defined(_WIN64) || defined(__WIN32__) || defined(_WIN32) || defined(WIN32) || defined(__CYGWIN__) || defined(__TOS_WIN__)
@@ -24,7 +25,7 @@
 	#include <linux/serial.h>
 	#include <sys/ioctl.h>
 	#include <unistd.h>
-	#include <fctnl.h>
+	#include <fcntl.h>
 #endif
 
 class Serial {
@@ -44,17 +45,20 @@ class Serial {
 		// BOOL fWaitOnRead;
 		COMMTIMEOUTS origTimeouts;
 	#else
-		long serialFd;
+		int serialFd;
+		struct termios tty;
+		bool configureTermios();
 	#endif
 	
 	public:
 		Serial();
 		Serial(std::string device, long bRate, long dSize, char pType, float sBits);
 		~Serial();
-		int open(); // Return 0 on success, otherwise return -1.
-		void close();
-		std::vector<char> Read(unsigned int numChars, bool& rSuccess);
-		bool Write(char *buffer, long length);
+		int Open(); // Return 0 on success, otherwise return -1.
+		void Close();
+		std::string Read(unsigned int numChars, bool& rSuccess);
+		std::vector<char> Read(unsigned int numChars, bool& rSuccess, int x);
+		bool Write(char *buffer, int length);
 		
 		// Set/Get config settings.
 		bool setRTS(bool value);
@@ -78,16 +82,16 @@ class Serial {
 
 		// Helpers.
 		bool isOpened();
-		static void Delay(unsigned long ms);
-};
+		std::vector<std::string> getAvailablePorts();
 
-void Serial::Delay(unsigned long ms)
-{
-#ifdef WINDOWS
-	Sleep(ms);
-#else
-	usleep(ms * 1000);
-#endif
-}
+		void Delay(unsigned long ms)
+			{
+				#ifdef WINDOWS
+				Sleep(ms);
+				#else
+				sleep(ms);
+				#endif
+			}
+};
 
 #endif // SERIAL_H

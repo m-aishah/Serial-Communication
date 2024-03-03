@@ -1,4 +1,5 @@
 #include "serial.h"
+#include <filesystem>
 
 Serial::Serial() : Serial(
 		#ifdef WINDOWS
@@ -20,13 +21,13 @@ Serial::Serial(std::string device, long bRate, long dSize, char pType, float sBi
 	setPortName(device);
 	setBaudRate(bRate);
 	setDataSize(dSize);
-	setParity(pTYpe);
+	setParity(pType);
 	setStopBits(sBits);
 }
 
 Serial::~Serial()
 {
-	close();
+	Close();
 }
 
 void Serial::setPortName(std::string device)
@@ -55,6 +56,7 @@ void Serial::setParity(char pType)
 		parity = ((pType == 'M') || (pType == 'S')) ? pType : 'N';
 #else
 		parity = 'N';
+#endif
 	}
 }
 
@@ -151,7 +153,7 @@ bool Serial::isOpened()
 	return (handler != INVALID_HANDLE_VALUE);
 }
 
-long Serial::open()
+long Serial::Open()
 {
 	if (isOpened())
 		return 0;
@@ -225,6 +227,7 @@ long Serial::open()
 	osRead.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (osRead.hEvent == NULL)
 		return (-1);
+	fWaitOnRead = FALSE;
 
 	osWrite = { 0 };
 	osWrite.hEVent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -248,7 +251,7 @@ long Serial::open()
 	return (0);
 }
 
-void Serial::close()
+void Serial::Close()
 {
 	if (isOpened())
 	{
@@ -331,7 +334,7 @@ std::vector<char> Serial::Read(unsigned int numChars, bool& rSuccess)
 }
 
 
-bool Serial::Write(char *buffer, long length)
+bool Serial::Write(char *buffer, int length)
 {
 	if (!IsOpened())
 		return (false);
@@ -454,5 +457,277 @@ bool Serial::getCD(bool &success)
 	return (false);
 }
 
+#else //Functionality for Linux.
+
+bool Serial::isOpened()
+{
+	return (serialFd != -1);
+}
 
 
+bool Serial::configureTermios()
+{
+	// Get port attributes.
+	if (tcgetattr(serialFd, &tty) != 0)
+	{
+		std::cerr << "Error getting serial port attributes: "
+			<< strerror(errno) << std::endl;
+		return false;
+	}
+	
+	//memset (&tty, 0, sizeof(tty));
+	
+	// Reconfigure some port settings.
+	// Control Modes.
+	// Parity.
+	if (parity != 'N') tty.c_cflag |= PARENB;
+	if (parity == 'O') tty.c_cflag |= PARODD;
+	if (parity == 'N') tty.c_cflag &= PARENB;
+
+	// Stop Bits.
+	if (stopBits == 2) tty.c_cflag |= CSTOPB;
+	else tty.c_cflag &= ~CSTOPB; // 1 stop bit.
+	
+	// Data Size.
+	tty.c_cflag &= ~CSIZE;  // Clear data size.
+	if (dataSize == 5) tty.c_cflag |= CS5;
+	else if (dataSize == 6) tty.c_cflag |= CS6;
+	else if (dataSize == 7) tty.c_cflag |= CS7;
+	else tty.c_cflag |= CS8;     // 8 bits per byte.
+	
+	tty.c_cflag &= ~CRTSCTS;        // Disable hardware flow control.
+	tty.c_cflag |= CREAD | CLOCAL;  // Turn on READ &
+        				// ignore ctrl lines.
+
+	// Local Modes.
+	tty.c_lflag &= ~ICANON; // Disable canonical mode.
+	tty.c_lflag &= ~ECHO;   // DIsable echo.
+	tty.c_lflag &= ~ECHOE;  // Disable erasure.
+	tty.c_lflag &= ~ECHONL; // DIsable new-line echo.
+	tty.c_lflag &= ~ISIG;   // Disable interpretation of INTR, QUIT and SUSP
+
+	// Input MOdes.
+	tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Disable software flow control.
+	// DIsable any special handling of received bytes.
+	tty.c_iflag &= ~(IGNBRK | BRKINT |PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+	tty.c_oflag &= ~OPOST; // Prevent special intepretation of output bytes.
+	tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/ Line feed.
+
+	tty.c_cc[VTIME] = 1;    // Timeout for non-blocking read.
+	tty.c_cc[VMIN] = 0;     // MInimum number of characters to read.
+	// Set baud rate.
+	if (!stdBaud)
+		//Do Something if not standard baudRate.
+		;
+	cfsetispeed(&tty, baudRate);
+	cfsetospeed(&tty, baudRate);
+
+	// Save new configurations.
+	if (tcsetattr(serialFd, TCSANOW, &tty) != 0)
+	{
+		std::cerr << "Error setting serial port attributes: "
+		<< strerror(errno) << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
+int Serial::Open()
+{
+	serialFd = open(portName.c_str(), O_RDWR);
+        if (serialFd == -1)
+        {
+		std::cerr << "Error open serial port: "
+			<< strerror(errno) << std::endl;
+		return (-1);
+	}
+	// Sleep for a while as arduino uno resets when port is opened.
+        sleep(3);
+	if (configureTermios())
+		return (0);
+	else 
+		return (-1);
+}
+
+void Serial::Close()
+{
+	if (isOpened())
+		close(serialFd);
+	serialFd = -1;
+}
+
+
+void Serial::setBaudRate(long bRate)
+{
+	stdBaud = true;
+	switch (bRate)
+	{
+		case 0: baudRate = B0; break;
+		case 50: baudRate = B50; break;
+		case 75: baudRate = B75; break;
+		case 110: baudRate = B110; break;
+		case 134: baudRate = B134; break;
+		case 150: baudRate = B150; break;
+		case 200: baudRate = B200; break;
+		case 300: baudRate = B300; break;
+		case 600: baudRate = B600; break;
+		case 1200: baudRate = B1200; break;
+		case 2400: baudRate = B2400; break;
+		case 4800: baudRate = B4800; break;
+		case 9600: baudRate = B9600; break;
+		case 19200: baudRate = B19200; break;
+		case 38400: baudRate = B38400; break;
+		case 57600: baudRate = B57600; break;
+		case 115200: baudRate = B115200; break;
+		case 230400: baudRate = B230400; break;
+		default:
+			baudRate = bRate;
+			stdBaud = false;
+			break;
+	}
+}
+
+std::string Serial::Read(unsigned int numChars, bool& rSuccess)
+{
+	char buffer[numChars];
+	int bytesRead = read(serialFd, buffer, numChars);
+
+	if (bytesRead == -1)
+	{
+		rSuccess = false; // Read operation failed
+		return ""; // Return empty string
+	}
+	rSuccess = true; // Read operation succeeded
+	return std::string(buffer, bytesRead); // Convert char buffer to string
+}
+
+std::vector<char> Serial::Read(unsigned int numChars, bool& rsuccess, int x) {
+    rsuccess = false;
+
+    std::vector<char> buffer(numChars);
+
+    if (!isOpened())
+	    return (buffer);
+
+    // Read data from serial port
+    int bytesRead = read(serialFd, buffer.data(), numChars);
+
+    if (bytesRead == -1) {
+        // Failed to read from serial port
+        return (buffer);
+    }
+
+    rsuccess = true;
+    return (buffer);
+}
+
+bool Serial::Write(char *buffer, int length)
+{
+	if (!isOpened())
+		return (false);
+
+	std::cout << "In write" << std::endl;
+	length = std::clamp(length, 0, 1024);
+
+	return (write(serialFd, buffer, length) == length);
+}
+
+bool Serial::setRTS(bool value)
+{
+	long RTS_flag = TIOCM_RTS;
+	if (value) {//Set RTS pin
+		if (ioctl(serialFd, TIOCMBIS, &RTS_flag) == -1) 
+			return (false);
+	}
+	else {//Clear RTS pin
+		if (ioctl(serialFd, TIOCMBIC, &RTS_flag) == -1) 
+			return (false);
+	}
+	return (true);
+}
+
+bool Serial::setDTR(bool value)
+{
+	long DTR_flag = TIOCM_DTR;
+	if (value) {//Set DTR pin
+		if (ioctl(serialFd, TIOCMBIS, &DTR_flag) == -1) 
+			return (false);
+	}
+	else {//Clear DTR pin
+		if (ioctl(serialFd, TIOCMBIC, &DTR_flag) == -1) 
+			return (false);
+	}
+	return (true);
+}
+
+bool Serial::getCTS(bool& success)
+{	
+	success = true;
+
+	long status;
+	if(ioctl(serialFd, TIOCMGET, &status)== -1) 
+		success = false;
+	return ((status & TIOCM_CTS) != 0);
+}
+
+bool Serial::getDSR(bool& success)
+{
+	success=true;
+
+	long status;
+	if(ioctl(serialFd, TIOCMGET, &status)== -1) 
+		success = false;
+	return ((status & TIOCM_DSR) != 0);
+}
+
+bool Serial::getRI(bool& success)
+{
+	success = true;
+
+	long status;
+	if(ioctl(serialFd, TIOCMGET, &status)== -1) 
+		success = false;
+	return ((status & TIOCM_RI) != 0);
+}
+
+bool Serial::getCD(bool& success)
+{
+	success=true;
+
+	long status;
+	if(ioctl(serialFd, TIOCMGET, &status)== -1)
+		success = false;
+	return ((status & TIOCM_CD) != 0);
+}
+
+using std::cout;
+namespace fs = std::filesystem;
+
+std::vector<std::string> getAvailablePorts() {
+    std::vector<std::string> port_names;
+
+    fs::path p("/dev/serial/by-id");
+    try {
+      if (!exists(p)) {
+        throw std::runtime_error(p.generic_string() + " does not exist");
+      } 
+      else {
+        for (auto de : fs::directory_iterator(p)) {
+          if (is_symlink(de.symlink_status())) {
+            fs::path symlink_points_at = read_symlink(de);
+            fs::path canonical_path = fs::canonical(p / symlink_points_at);
+            //cout << canonical_path.generic_string() << std::endl;
+            port_names.push_back(canonical_path.generic_string());
+          }
+        }
+      }
+    } catch (const fs::filesystem_error &ex) {
+      cout << ex.what() << '\n';
+      throw ex;
+    }
+    std::sort(port_names.begin(), port_names.end());
+    return port_names;
+}
+
+#endif
